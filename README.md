@@ -3,6 +3,10 @@
 A powerful AI-powered application that generates Suno lo-fi prompts and YouTube-ready content using Google's Gemini AI. Create cohesive lo-fi albums with detailed prompts, YouTube metadata, and cover art suggestions.
 ![image](https://github.com/user-attachments/assets/4ad4e647-5382-4b48-a323-892e020cd7b7)
 
+## 🌐 Live Demo
+
+Try the application online: [Suno Lo-Fi Generator](https://huggingface.co/spaces/LKTs/suno-lofi_app)
+
 ## ✨ Features
 
 - 🤖 AI-powered song prompt generation using Google's Gemini AI
