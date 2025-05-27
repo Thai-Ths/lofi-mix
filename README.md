@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 1. Start the application:
 ```bash
-python lofi_mix.py
+python app.py
 ```
 
 2. Open your web browser and navigate to the URL shown in the terminal (typically http://localhost:7860)
