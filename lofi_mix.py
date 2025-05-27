@@ -67,26 +67,9 @@ class State(TypedDict):
 
 # Agent Implementation
 class LoFiSongGenerator:
-    def __init__(self, api_key: str = None):
-        self.api_key = api_key
-        self.llm = None
-        self.graph = None
-        if api_key:
-            self._initialize_llm()
-    
-    def _initialize_llm(self):
-        """Initialize the LLM with the provided API key"""
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-preview-04-17",
-            temperature=0.7,
-            google_api_key=self.api_key
-        )
+    def __init__(self):
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", temperature=0.7)
         self.graph = self._build_graph()
-    
-    def set_api_key(self, api_key: str):
-        """Set a new API key and reinitialize the LLM"""
-        self.api_key = api_key
-        self._initialize_llm()
     
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow"""
@@ -566,17 +549,11 @@ class LoFiSongGenerator:
 def create_gradio_interface():
     generator = LoFiSongGenerator()
     
-    def process_request(user_input, number_of_song, api_key):
-        if not api_key.strip():
-            return pd.DataFrame(), "", "Please enter your Gemini API key.", None, None
-        
+    def process_request(user_input, number_of_song=5):
         if not user_input.strip():
-            return pd.DataFrame(), "", "Please enter a style or mood description.", None, None
+            return "", "", "Please enter a style or mood description."
         
         try:
-            # Set the API key before processing
-            generator.set_api_key(api_key)
-            
             final_state = generator.process(user_input, number_of_song)
             
             # Get CSV outputs from metadata
@@ -627,12 +604,6 @@ def create_gradio_interface():
             gr.Markdown("Generate lo-fi songs with YouTube-ready content using AI agents!")
 
             with gr.Column():
-                api_key = gr.Textbox(
-                    label="Gemini API Key",
-                    placeholder="Enter your Gemini API key here",
-                    type="password",
-                    info="Get your API key from https://makersuite.google.com/app/apikey"
-                )
                 user_input = gr.Textbox(
                     label="Style or Mood Input",
                     placeholder="Enter the style, mood, or theme you want (e.g., 'nostalgic Japanese summer evening', 'cozy winter study session', 'dreamy midnight vibes')",
@@ -696,7 +667,7 @@ def create_gradio_interface():
 
             generate_btn.click(
                 fn=process_request,
-                inputs=[user_input, num_songs, api_key],
+                inputs=[user_input, num_songs],
                 outputs=[album_output, youtube_output, status_output, csv_output, txt_output]
             )
 
