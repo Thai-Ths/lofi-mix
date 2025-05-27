@@ -5,7 +5,7 @@ A powerful AI-powered application that generates Suno lo-fi prompts and YouTube-
 
 ## 🌐 Live Demo
 
-Try the application online: [Suno Lo-Fi Generator](https://huggingface.co/spaces/LKTs/suno-lofi_app)
+Try the application online: [Suno Lo-Fi Generator](https://huggingface.co/spaces/LKTs/suno-lofi-app)
 
 ## ✨ Features
 
