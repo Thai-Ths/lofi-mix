@@ -38,7 +38,7 @@ Try the application online: [Suno Lo-Fi Generator](https://huggingface.co/spaces
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Thai-Ths/lofi-mix.git
 cd lo-fi-mix
 ```
 
