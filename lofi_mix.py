@@ -67,9 +67,26 @@ class State(TypedDict):
 
 # Agent Implementation
 class LoFiSongGenerator:
-    def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-04-17", temperature=0.7)
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key
+        self.llm = None
+        self.graph = None
+        if api_key:
+            self._initialize_llm()
+    
+    def _initialize_llm(self):
+        """Initialize the LLM with the provided API key"""
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash-preview-04-17",
+            temperature=0.7,
+            google_api_key=self.api_key
+        )
         self.graph = self._build_graph()
+    
+    def set_api_key(self, api_key: str):
+        """Set a new API key and reinitialize the LLM"""
+        self.api_key = api_key
+        self._initialize_llm()
     
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph workflow"""
@@ -144,32 +161,39 @@ class LoFiSongGenerator:
                 raise ValueError("No style data available")
             
             style_data = state["style_data"]
-            number_of_song = state["number_of_song"]
             
             system_prompt = f"""You are a creative music producer specializing in lo-fi beats and chill music.
-            Generate {number_of_song} unique song prompts that form a cohesive album based on the provided style data.
+            Generate {state["number_of_song"]} unique song prompts that form a cohesive album based on the provided style data.
             
             You MUST respond with a valid JSON object in this format:
             {{
                 "album_name": "Name of the album/playlist",
                 "theme": "Unifying theme description",
-                "track_count": 5,
+                "track_count": {state["number_of_song"]},
                 "songs": [
                     {{
-                        "song_name": "Title of the song",
+                        "song_name": "Titles of the song",
                         "genre": "Specific genre",
                         "song_prompt": "Detailed Suno AI prompt with instruments, mood, atmosphere"
                     }}
                 ]
             }}
             
-            Each song should:
+            Each lo-fi song must follow this format (note that not all elements are necessary):\
+                [Genre and Style], [Mood and Emotion], [Instrumentation], [Tempo and Key], [Optional Vocal Style], [Optional Song Structure], [Optional Ambient/Atmospheric Elements]
+
+            Instructions each song should:
+            - Song name should related to the song Mood and Feelings
             - Have a unique but related theme
-            - Songs must be ordered by semantic proximity to the input style or mood.
-            - Describe the mood and atmosphere clearly
-            - Avoid repetition
+            - Use clear, vivid, avoid repetition
+            - Sort the songs by how close they are in mood
+            - Describe the mood and atmosphere clearly without labeling them as 'Genre:', 'Mood:', or other headers
+            - Always include tempo (BPM) and musical key
+            - No need to label sections; just write the full sentence in one flow
             - Be optimized for SunoAI generation
-            - Vary slightly in tempo and energy while maintaining cohesion
+
+            Example:
+            chill, Japanese 90s vibe, nostalgic, serene, introspective, soft piano, acoustic guitar, vinyl crackles, gentle percussion, 65 BPM, key of C major, female vocals, ethereal tone, include ambient city sounds in the background
             
             """
             
@@ -472,14 +496,14 @@ class LoFiSongGenerator:
                 # tags=["lofi", "chill", "relax"],
                 # duration_hint="2-3 minutes"
             )
-            for i in range(5)
+            for i in range(self.state["number_of_song"])
         ]
         
         return Album(
             album_name="Generated Lo-Fi Album",
             theme="Relaxing lo-fi music collection",
             songs=songs,
-            track_count=5
+            track_count=self.state["number_of_song"]
         )
     
     def _parse_youtube_response(self, response_content: str) -> List[YouTubeContent]:
@@ -549,11 +573,17 @@ class LoFiSongGenerator:
 def create_gradio_interface():
     generator = LoFiSongGenerator()
     
-    def process_request(user_input, number_of_song=5):
+    def process_request(user_input, number_of_song, api_key):
+        if not api_key or not api_key.strip():
+            return pd.DataFrame(), "", "❌ Error: Please enter your Gemini API key to continue.\n\nGet your API key from: https://makersuite.google.com/app/apikey", None, None
+        
         if not user_input.strip():
-            return "", "", "Please enter a style or mood description."
+            return pd.DataFrame(), "", "❌ Error: Please enter a style or mood description.", None, None
         
         try:
+            # Set the API key before processing
+            generator.set_api_key(api_key)
+            
             final_state = generator.process(user_input, number_of_song)
             
             # Get CSV outputs from metadata
@@ -570,19 +600,19 @@ def create_gradio_interface():
             youtube_txt_file = final_state.get("metadata", {}).get('youtube_txt_file')
             
             # Format status with more details
-            detailed_status = f"Status: {status}\n"
-            detailed_status += f"Album: {album_name}\n"
-            detailed_status += f"Total Songs Generated: {total_songs}\n"
+            detailed_status = f"✅ Status: {status}\n"
+            detailed_status += f"🎵 Album: {album_name}\n"
+            detailed_status += f"🎼 Total Songs Generated: {total_songs}\n"
             
             # Add file paths if available
             if album_csv_file:
-                detailed_status += f"Album CSV saved to: {album_csv_file}\n"
+                detailed_status += f"💾 Album CSV saved to: {album_csv_file}\n"
             if youtube_txt_file:
-                detailed_status += f"YouTube CSV saved to: {youtube_txt_file}\n"
+                detailed_status += f"📝 YouTube content saved to: {youtube_txt_file}\n"
             
             # Add any errors
             if final_state.get("errors"):
-                detailed_status += f"\nErrors encountered: {', '.join(final_state['errors'])}"
+                detailed_status += f"\n❌ Errors encountered: {', '.join(final_state['errors'])}"
             
             # Convert CSV string to DataFrame for Gradio Dataframe component
             import pandas as pd
@@ -595,21 +625,31 @@ def create_gradio_interface():
             return df, youtube_txt, detailed_status, album_csv_file, youtube_txt_file
             
         except Exception as e:
-            return pd.DataFrame(), "", f"Error: {str(e)}", None, None
+            error_message = f"❌ Error: {str(e)}\n\n"
+            if "API key" in str(e).lower():
+                error_message += "Please check your Gemini API key and try again.\n"
+                error_message += "Get your API key from: https://makersuite.google.com/app/apikey"
+            return pd.DataFrame(), "", error_message, None, None
     
     # Create Gradio interface
     def make_interface():
         with gr.Blocks(theme=gr.themes.Soft()) as demo:
             gr.Markdown("# 🎵 Lo-Fi Song Generator")
-            gr.Markdown("Generate lo-fi songs with YouTube-ready content using AI agents!")
+            gr.Markdown("Generate Suno lo-fi prompts with YouTube-ready content using AI agents!")
 
             with gr.Column():
+                api_key = gr.Textbox(
+                    label="Gemini API Key",
+                    placeholder="Enter your Gemini API key here",
+                    type="password",
+                    info="Get your API key from https://makersuite.google.com/app/apikey"
+                )
                 user_input = gr.Textbox(
                     label="Style or Mood Input",
                     placeholder="Enter the style, mood, or theme you want (e.g., 'nostalgic Japanese summer evening', 'cozy winter study session', 'dreamy midnight vibes')",
                     lines=3
                 )
-                num_songs = gr.Slider(minimum=1, maximum=30, value=25, step=1, label="Number of Songs")
+                num_songs = gr.Slider(minimum=1, maximum=30, value=3, step=1, label="Number of Songs")
 
             generate_btn = gr.Button("Generate Lo-fi Album")
 
@@ -667,7 +707,7 @@ def create_gradio_interface():
 
             generate_btn.click(
                 fn=process_request,
-                inputs=[user_input, num_songs],
+                inputs=[user_input, num_songs, api_key],
                 outputs=[album_output, youtube_output, status_output, csv_output, txt_output]
             )
 
